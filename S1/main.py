@@ -35,20 +35,30 @@ def escoger_opcion() -> int:
     """
     return int(input("Elija una opción: "))
 
-def crear_tablas(cursor: oracledb.cursor.Cursor):
+def crear_tablas(conexion: oracledb.Connection):
     """
         Crea las tablas `Stock`, `Pedido` y `DetallePedido` definidas en el
         fichero `crear_tablas.sql` en la base de datos.
     """
-    try:
-        filepath: str = './sql/crear_tablas.sql'
-        cursor.execute(f'START {filepath}')
-    except Exception as e:
-        print(f'No se pueden crear las tablas \n {e}')
-    else:
-        print('Se han creado las tablas correctamente')
+    with conexion.cursor() as cursor:
+        try:
+            query = "CREATE TABLE Stock (\
+                        Cproducto NUMBER CONSTRAINT Cproducto_no_nulo NOT NULL\
+                        CONSTRAINT Cproducto_clave_primaria PRIMARY KEY,\
+                        Cantidad NUMBER CONSTRAINT Cantidad_no_nulo NOT NULL\
+                    )"
+        # Tenemos que insertar aqui el resto de tablas
+            cursor.execute("CREATE TABLE Stock (\
+                                Cproducto NUMBER CONSTRAINT Cproducto_no_nulo NOT NULL\
+                                CONSTRAINT Cproducto_clave_primaria PRIMARY KEY,\
+                                Cantidad NUMBER CONSTRAINT Cantidad_no_nulo NOT NULL\
+                          )")
+        except Exception as e:
+            print(f'No se pueden crear las tablas \n {e}')
+        else:
+            print('Se han creado las tablas correctamente')
 
-def borrar_tablas(cursor: oracledb.cursor.Cursor):
+def borrar_tablas(conexion: oracledb.Connection):
     """
         Borra las tablas Stock, Pedido y DetallePedido
         de la base de datos
@@ -57,34 +67,43 @@ def borrar_tablas(cursor: oracledb.cursor.Cursor):
         """
             Borra la tabla con nombre `tabla` de la base de datos
         """
-        try:
-            # TODO: Borrar tabla
-            #? Verificamos primero que la tabla existe antes de borrarla?
-            #? Si no, saltara un Exception
-            cursor.execute(f'DROP TABLE {tabla}')
-        except Exception as e:
-            print(f'No se ha podido borrar la tabla {tabla} \n {e}')
-        else:
-            print(f'Tabla {tabla} borrada correctamente')
+        with conexion.cursor() as cursor:
+            try:
+                # TODO: Borrar tabla
+                #? Verificamos primero que la tabla existe antes de borrarla?
+                #? Si no, saltara un Exception
+                existe: bool = cursor.execute(
+                    f'SELECT TABLE_NAME FROM USER_TABLES WHERE TABLE_NAME=\'{tabla.upper()}\'').fetchone() != None
+                if existe:
+                    cursor.execute(f'DROP TABLE {tabla}')
+                    print(f'Tabla {tabla} borrada correctamente')
+                else:
+                    print(f'La tabla {tabla} no existe, no se puede borrar')
+                    return
+            except Exception as e:
+                print(f'No se ha podido borrar la tabla {tabla} \n {e}')
 
+    borrar_tabla('DetallePedido')
     borrar_tabla('Stock')
     borrar_tabla('Pedido')
-    borrar_tabla('DetallePedido')
-
-def insertar_tuplas_tabla_stock(cursor: oracledb.cursor.Cursor):
+    
+def insertar_tuplas_tabla_stock(conexion: oracledb.Connection):
     """
         Inserta 10 tuplas predefinidas en el fichero `insercion_tuplasPredefinidas_Stock.sql`
         en la tabla `Stock`
     """
-    try:
-        filepath: str = './sql/insercion_tuplasPredefinidas_Stock.sql'
-        cursor.execute('START {filepath}')
-    except Exception as e:
-        print(f'No se pueden insertar las tuplas en Stock: \n {e}')
-    else:
-        print('Se han insertado las tuplas correctamente')
+    with conexion.cursor() as cursor:
+        try:
+            cantidades: list[int] = [100,50,1000,85,21,78,101,64,37,29]
+            tuplas: list[tuple] = list(enumerate(cantidades, start=1))
+            for cproducto, cantidad in tuplas:
+                cursor.execute(f'INSERT INTO Stock VALUES ({cproducto},{cantidad})')
+        except Exception as e:
+            print(f'No se pueden insertar las tuplas en Stock: \n {e}')
+        else:
+            print('Se han insertado las tuplas correctamente')
 
-def mostrar_bd(cursor: oracledb.cursor.Cursor):
+def mostrar_bd(conexion: oracledb.Connection):
     """
         Muestra las tablas Stock, Pedido y DetallePedido
         en la pantalla
@@ -94,28 +113,33 @@ def mostrar_bd(cursor: oracledb.cursor.Cursor):
             Muestra la tabla con nombre `tabla`
         """
         print(f'\t---Tabla {tabla}---\t')
-        try:
-            # Primero obtenemos los nombres de las columnas de la tabla
-            columnas: list = cursor.execute(
-                f'SELECT COLUMN_NAME FROM USER_TAB_COLUMNS WHERE TABLE_NAME=\'{tabla.upper()}\'').fetchall()
+        with conexion.cursor() as cursor:
+            try:
+                # Primero obtenemos los nombres de las columnas de la tabla
+                columnas: list = cursor.execute(
+                    f'SELECT COLUMN_NAME FROM USER_TAB_COLUMNS WHERE TABLE_NAME=\'{tabla.upper()}\'').fetchall()
 
-            # Apareceran tuplas de tamaño 1, nos quedamos solo con su contenido
-            columnas = [t[0] for t in columnas]
+                # Apareceran tuplas de tamaño 1, nos quedamos solo con su contenido
+                columnas = [t[0] for t in columnas]
 
-            # Despues construimos una tabla de Pandas (dataframe) con las tuplas obtenidas
-            # y los nombres de columnas que hemos obtenidos anteriormente
-            dataframe: pd.DataFrame = pd.DataFrame(cursor.execute(f'SELECT * FROM {tabla}').fetchall(), columns=columnas)
+                # Despues construimos una tabla de Pandas (dataframe) con las tuplas obtenidas
+                # y los nombres de columnas que hemos obtenidos anteriormente
+                dataframe: pd.DataFrame = pd.DataFrame(cursor.execute(f'SELECT * FROM {tabla}').fetchall(), columns=columnas)
 
-            # Mostramos la tabla
-            print(dataframe.to_string(index=False))
-        except Exception as e:
-            print(f'Hubo un error al intentar mostrar la tabla {tabla}: \n {e}')
+                # Mostramos la tabla
+                if (not dataframe.empty):
+                    print(dataframe.to_string(index=False))
+                else:
+                    print('No existen tuplas en esta tabla')
+
+            except Exception as e:
+                print(f'Hubo un error al intentar mostrar la tabla {tabla}: \n {e}')
     
     mostrar_tabla('Stock')
     mostrar_tabla('Pedido')
     mostrar_tabla('DetallePedido')
 
-def alta_pedido(cursor: oracledb.cursor.Cursor):
+def alta_pedido(conexion: oracledb.Connection):
 
     codigo_producto: str = None
     cantidad_bd: int = 0
@@ -143,43 +167,44 @@ def alta_pedido(cursor: oracledb.cursor.Cursor):
             con los datos solicitados
             # TODO: Comentar acerca de la transferencia de datos
         """
-        # Le preguntamos al usuario cual es el codigo de producto que desea
-        # y obtenemos la cantidad del producto correspondiente de la tabla Stock
-        while (cantidad_bd <= 0):
-            try:
-                codigo_producto = str(input("Inserte código de producto: "))
-                query = f'SELECT Cantidad FROM Stock WHERE Cproducto={codigo_producto}'
-                cantidad_bd = cursor.execute(query).fetchone()[0] # Primera tupla de la consulta, primera columna
-            except Exception as e:
-                print(f'Ha ocurrido un error en la base de datos: \n {e}')
-                return
-            else:
-                # Si no hay stock disponible, volvemos al menú anterior
-                if (cantidad_bd <= 0):
-                    print('No hay existencias del producto solicitado. Volviendo al menú...')
+        with conexion.cursor() as cursor:
+            # Le preguntamos al usuario cual es el codigo de producto que desea
+            # y obtenemos la cantidad del producto correspondiente de la tabla Stock
+            while (cantidad_bd <= 0):
+                try:
+                    codigo_producto = str(input("Inserte código de producto: "))
+                    query = f'SELECT Cantidad FROM Stock WHERE Cproducto={codigo_producto}'
+                    cantidad_bd = cursor.execute(query).fetchone()[0] # Primera tupla de la consulta, primera columna
+                except Exception as e:
+                    print(f'Ha ocurrido un error en la base de datos: \n {e}')
                     return
-                # Si hay stock, comunicamos cuantas unidades hay y seguimos
                 else:
-                    print(f'Existen {cantidad_bd} unidades del producto solicitado')
+                    # Si no hay stock disponible, volvemos al menú anterior
+                    if (cantidad_bd <= 0):
+                        print('No hay existencias del producto solicitado. Volviendo al menú...')
+                        return
+                    # Si hay stock, comunicamos cuantas unidades hay y seguimos
+                    else:
+                        print(f'Existen {cantidad_bd} unidades del producto solicitado')
 
-        # Ahora le pedimos al usuario la cantidad de productos que desea pedir
-        # Debe ser menor o igual que la cantidad que hay en stock, y mayor o igual que cero
-        while (cantidad_cliente <= 0 or cantidad_cliente > cantidad_bd):
-            cantidad_cliente = int(input('Cantidad a pedir: '))
-            if (cantidad_cliente > cantidad_bd):
-                print('La cantidad debe ser menor o igual a las existencias disponibles')
-        
-        # TODO: Resto de funcion añadir detalle
-        # Una vez tenemos bien todos los datos solicitados, creamos una nueva tupla en
-        # la tabla DetallesPedido (Cpedido, Cproducto, cantidad)
-        #! Tambien deberiamos hacer lo de las transferencias
+            # Ahora le pedimos al usuario la cantidad de productos que desea pedir
+            # Debe ser menor o igual que la cantidad que hay en stock, y mayor o igual que cero
+            while (cantidad_cliente <= 0 or cantidad_cliente > cantidad_bd):
+                cantidad_cliente = int(input('Cantidad a pedir: '))
+                if (cantidad_cliente > cantidad_bd):
+                    print('La cantidad debe ser menor o igual a las existencias disponibles')
+            
+            # TODO: Resto de funcion añadir detalle
+            # Una vez tenemos bien todos los datos solicitados, creamos una nueva tupla en
+            # la tabla DetallesPedido (Cpedido, Cproducto, cantidad)
+            #! Tambien deberiamos hacer lo de las transferencias
 
-        # Finalmente:
-        # print('Se ha detallado el pedido correctamente')
-        # print('Codigo pedido')
-        # print('Codigo producto')
-        # print('Cantidad')
-        # ------------------------------------------------
+            # Finalmente:
+            # print('Se ha detallado el pedido correctamente')
+            # print('Codigo pedido')
+            # print('Codigo producto')
+            # print('Cantidad')
+            # ------------------------------------------------
 
     # TODO: Eliminar detalle
     def eliminar_detalle():
@@ -187,24 +212,26 @@ def alta_pedido(cursor: oracledb.cursor.Cursor):
             Eliminar todos los detalles SOLO en detalle-pedido
             #? Las variables del codigo de producto y de la cantidad deberian estar definidas en alta pedido?
         """
-        try:
-            pass
-        except:
-            print('Error al intentar borrar los detalles del pedido')
-        else:
-            print('Detalles del pedido borrados correctamente')
+        with conexion.cursor() as cursor:
+            try:
+                pass
+            except:
+                print('Error al intentar borrar los detalles del pedido')
+            else:
+                print('Detalles del pedido borrados correctamente')
     
     # TODO: Cancelar pedido
     def cancelar():
         """
             borrar tupla de pedido y salir
         """
-        try:
-            pass
-        except:
-            print('Error al cancelar el pedido')
-        else:
-            print('Pedido cancelado correctamente')
+        with conexion.cursor() as cursor:
+            try:
+                pass
+            except:
+                print('Error al cancelar el pedido')
+            else:
+                print('Pedido cancelado correctamente')
 
     def terminar():
         print('Saliendo del menú de altas...')
@@ -225,7 +252,7 @@ def alta_pedido(cursor: oracledb.cursor.Cursor):
             case 4:
                 terminar()
         if (opc != 4): 
-            mostrar_bd(cursor)
+            mostrar_bd(conexion)
 
 ###############################################################################
 
@@ -299,22 +326,21 @@ def main():
 
     menu_principal()
     opc: int = None
-    with conexion.cursor() as cursor:
-        while (opc != 4):
-            opc = escoger_opcion()
-            match opc:
-                case 1:
-                    # TODO: Revisar. Deberiamos encapsular estas tres funciones??? -> reestablecer_bd()
-                    # Borrado y nueva creación de las tablas e inserción de 10 tuplas predefinidas en el código en la tabla Stock
-                    borrar_tablas(cursor)
-                    crear_tablas(cursor)
-                    insertar_tuplas_tabla_stock(cursor)
-                case 2:
-                    # Dar de alta un pedido
-                    alta_pedido(cursor)
-                case 3:
-                    # Mostrar el contenido de las tablas
-                    mostrar_bd(cursor)
+    while (opc != 4):
+        opc = escoger_opcion()
+        match opc:
+            case 1:
+                # TODO: Revisar. Deberiamos encapsular estas tres funciones??? -> reestablecer_bd()
+                # Borrado y nueva creación de las tablas e inserción de 10 tuplas predefinidas en el código en la tabla Stock
+                borrar_tablas(conexion)
+                crear_tablas(conexion)
+                insertar_tuplas_tabla_stock(conexion)
+            case 2:
+                # Dar de alta un pedido
+                alta_pedido(conexion)
+            case 3:
+                # Mostrar el contenido de las tablas
+                mostrar_bd(conexion)
     
     # Cerramos conexión con la base de datos
     print("Cerrando conexión...")
