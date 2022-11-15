@@ -1,4 +1,3 @@
-
 CREATE TABLE Stock
 (
     Cproducto NUMBER CONSTRAINT Cproducto_no_nulo NOT NULL
