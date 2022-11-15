@@ -42,8 +42,15 @@ def crear_tablas(conexion: oracledb.Connection):
     """
     with conexion.cursor() as cursor:
         try:
-            filepath: str = './sql/crear_tablas.sql'
-            cursor.execute(f'START {filepath}')
+            query = """
+CREATE TABLE Stock
+(
+    Cproducto NUMBER CONSTRAINT Cproducto_no_nulo NOT NULL
+        CONSTRAINT Cproducto_clave_primaria PRIMARY KEY,
+    Cantidad NUMBER CONSTRAINT Cantidad_no_nulo NOT NULL
+)
+"""
+            cursor.execute(query)
         except Exception as e:
             print(f'No se pueden crear las tablas \n {e}')
         else:
@@ -74,10 +81,10 @@ def borrar_tablas(conexion: oracledb.Connection):
             except Exception as e:
                 print(f'No se ha podido borrar la tabla {tabla} \n {e}')
 
+    borrar_tabla('DetallePedido')
     borrar_tabla('Stock')
     borrar_tabla('Pedido')
-    borrar_tabla('DetallePedido')
-
+    
 def insertar_tuplas_tabla_stock(conexion: oracledb.Connection):
     """
         Inserta 10 tuplas predefinidas en el fichero `insercion_tuplasPredefinidas_Stock.sql`
@@ -85,8 +92,10 @@ def insertar_tuplas_tabla_stock(conexion: oracledb.Connection):
     """
     with conexion.cursor() as cursor:
         try:
-            filepath: str = './sql/insercion_tuplasPredefinidas_Stock.sql'
-            cursor.execute(f'START {filepath}')
+            cantidades: list[int] = [100,50,1000,85,21,78,101,64,37,29]
+            tuplas: list[tuple] = list(enumerate(cantidades, start=1))
+            for cproducto, cantidad in tuplas:
+                cursor.execute(f'INSERT INTO Stock VALUES ({cproducto},{cantidad})')
         except Exception as e:
             print(f'No se pueden insertar las tuplas en Stock: \n {e}')
         else:
