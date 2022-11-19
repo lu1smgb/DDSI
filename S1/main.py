@@ -35,7 +35,6 @@ def escoger_opcion() -> int:
     """
         Solicita un número por entrada estándar
     """
-    # NUEVO: Si le pasabamos un string el programa terminaba, ahora ya no
     try:
         opc: int = int(input("\nElija una opción: "))
     except ValueError:
@@ -111,9 +110,6 @@ def borrar_tablas(conexion: oracledb.Connection):
         """
         with conexion.cursor() as cursor:
             try:
-                # TODO: Borrar tabla
-                # ? Verificamos primero que la tabla existe antes de borrarla?
-                # ? Si no, saltara un Exception
                 existe: bool = cursor.execute(
                     f'SELECT TABLE_NAME FROM USER_TABLES WHERE TABLE_NAME=\'{tabla.upper()}\'').fetchone() != None
                 if existe:
@@ -254,7 +250,7 @@ def alta_pedido(conexion: oracledb.Connection):
                     query = f'SELECT Cantidad FROM Stock WHERE Cproducto={codigo_producto}'
                     # Primera tupla de la consulta, primera columna
                     cantidad_bd = cursor.execute(query).fetchone()[0]
-                    # NUEVO: Si el codigo de producto no existe, volvemos al menu de pedido para que vuelva a introducir los datos
+                    # Si el codigo de producto no existe, volvemos al menu de pedido para que vuelva a introducir los datos
                     if (cantidad_bd == None):
                         print('\tProducto no encontrado, volviendo al menu...') 
                         return
