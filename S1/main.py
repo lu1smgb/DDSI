@@ -23,9 +23,9 @@ def menu_principal():
     """
         Imprime el menú principal por pantalla
     """
-    print('--- MENÚ PRINCIPAL ---')
+    print('\n\t--- MENÚ PRINCIPAL ---')
     print('\tOpciones:')
-    print('\t1. Borrado y nueva creación de las tablas e inserción de 10 tuplas predefinidas en el código en la tabla Stock.')
+    print('\t1. Reestablecer tablas.')
     print('\t2. Dar de alta un pedido.')
     print('\t3. Mostrar contenido de las tablas.')
     print('\t4. Salir del programa y cerrar conexión.')
@@ -218,7 +218,7 @@ def alta_pedido(conexion: oracledb.Connection):
             Imprime el menú secundario correspondiente a la funcionalidad
             de dar de alta un pedido
         """
-        print('--- MENÚ DE ALTA DE PEDIDO ---')
+        print('\n\t--- MENÚ DE ALTA DE PEDIDO ---')
         print('\tOpciones:')
         print('\t1. Añadir los detalles del pedido.')
         print('\t2. Eliminar todos los detalles del pedido.')
@@ -245,17 +245,25 @@ def alta_pedido(conexion: oracledb.Connection):
             # y obtenemos la cantidad del producto correspondiente de la tabla Stock
             while (cantidad_bd <= 0):
                 try:
-                    codigo_producto = int(
-                        input("\nInserte código de producto: "))
+                    codigo_producto = int(input("\nInserte código de producto: "))
                     query = f'SELECT Cantidad FROM Stock WHERE Cproducto={codigo_producto}'
-                    # Primera tupla de la consulta, primera columna
+                    # Primera tupla de la consulta, primer valor
                     cantidad_bd = cursor.execute(query).fetchone()[0]
                     # Si el codigo de producto no existe, volvemos al menu de pedido para que vuelva a introducir los datos
                     if (cantidad_bd == None):
                         print('\tProducto no encontrado, volviendo al menu...') 
                         return
+                # Si le pasamos una entrada (codigo_producto) con caracteres alfabéticos, volvemos atrás
+                except ValueError:
+                    print('Entrada no válida, cancelando...')
+                    return
+                # Si le pasamos un código de producto que no existe en la tabla Stock, volvemos atrás
+                except TypeError:
+                    print('El producto no existe, cancelando...')
+                    return
+                # Si ocurre otro error, volvemos atrás
                 except Exception as e:
-                    print(f'Ha ocurrido un error en la base de datos:\n {e}')
+                    print(f'Ha ocurrido un error inseperado:\n {e}')
                     return
                 else:
                     # Si no hay stock disponible, volvemos al menú anterior
@@ -269,7 +277,12 @@ def alta_pedido(conexion: oracledb.Connection):
             # Ahora le pedimos al usuario la cantidad de productos que desea pedir
             # Debe ser menor o igual que la cantidad que hay en stock, y mayor o igual que cero
             while (cantidad_cliente <= 0 or cantidad_cliente > cantidad_bd):
-                cantidad_cliente = int(input('\nCantidad a pedir: '))
+                cantidad_cliente = int(input('\nCantidad a pedir (<=0 para cancelar): '))
+                # Si le pasamos un valor menor o igual que cero, cancelamos:
+                if (cantidad_cliente <= 0):
+                    print('\n\tOperación cancelada, volviendo al menú...')
+                    return
+                # Si pedimos mas de lo que hay en Stock:
                 if (cantidad_cliente > cantidad_bd):
                     print('\n\tLa cantidad debe ser menor o igual a las existencias disponibles.')
             
@@ -305,6 +318,7 @@ def alta_pedido(conexion: oracledb.Connection):
         """
             Borrar tupla del pedido y salir
         """
+        print('\nCancelando pedido...\n')
         with conexion.cursor() as cursor:
             try:
                 cursor.execute('ROLLBACK TO pedido')
@@ -315,6 +329,7 @@ def alta_pedido(conexion: oracledb.Connection):
 
     def terminar():
         # COMPROBAR SI AL FINAL EL PEDIDO TIENE ALGÚN DETALLE ASOCIADO
+        print('\nConfirmando pedido...\n')
         query = f'SELECT count(*) FROM DetallePedido where Cpedido = {codigo_pedido}'
         with conexion.cursor() as cursor:
             num_tuplas_DetallePedido = cursor.execute(query).fetchone()[0]
@@ -323,7 +338,6 @@ def alta_pedido(conexion: oracledb.Connection):
                 cursor.execute('COMMIT')
             else: # Si está vacío de detalles, no se guardará
                 cursor.execute('ROLLBACK')
-        print('\n\tSaliendo del menú de alta de pedido...')
 
     # ----------------------------------------------------------------------------------------------------------------------
 
@@ -351,11 +365,13 @@ def alta_pedido(conexion: oracledb.Connection):
                         cancelar() # Deshacemos el pedido, volvemos al punto 1
                     case 4:
                         terminar()
+                    case _:
+                        print('\nEsta opción no existe\n')
                 # SIEMPRE muestra la base de datos si no se termina un pedido
                 if (opc != 4):
                     mostrar_bd(conexion)
 
-    print('\n')
+    print('\n\tSaliendo del menú de alta de pedido...')
 
 
 ###############################################################################
@@ -421,8 +437,7 @@ def main():
                                                          user=username,
                                                          password=password)
     except Exception as e:
-        print(
-            f'\n\tNo se ha podido establecer conexión con la base de datos: \n {e}')
+        print(f'\n\tNo se ha podido establecer conexión con la base de datos: \n {e}')
         exit()
     else:
         print('\n\tConexión realizada correctamente.')
@@ -442,12 +457,15 @@ def main():
                 crear_tablas(conexion)
                 insertar_tuplas_tabla_stock(conexion)
                 conexion.cursor().execute("COMMIT") # FALTABA UN COMMIT AL FINAL DE LA OPCIÓN 1 PARA QUE SE MANTUVIERAN ALGUNOS DE LOS CAMBIOS.
+                print('\n\tTablas reestablecidas')
             case 2:
                 # Dar de alta un pedido
                 alta_pedido(conexion)
             case 3:
                 # Mostrar el contenido de las tablas
                 mostrar_bd(conexion)
+            case _: # default:
+                print('\nEsta opción no existe\n')
 
     # Cerramos conexión con la base de datos
     print("\nCerrando conexión...")
